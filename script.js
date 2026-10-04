@@ -1,0 +1,688 @@
+/* SpiceKart storefront JavaScript */
+const PRODUCTS = [
+  {id:1,name:"Turmeric Powder",category:"Ground Spices",pack:"500g",price:199,old:249,img:"assets/prod_turmeric.jpg",rating:4.8,desc:"Bright, aromatic turmeric powder made for everyday cooking.",ingredients:"100% turmeric",usage:"Curries, rice, marinades and drinks."},
+  {id:2,name:"Red Chilli Powder",category:"Ground Spices",pack:"500g",price:189,old:239,img:"assets/prod_chilli.jpg",rating:4.7,desc:"Bold colour and balanced heat for authentic Indian dishes.",ingredients:"100% red chilli",usage:"Curries, chutneys and spice mixes."},
+  {id:3,name:"Coriander Powder",category:"Ground Spices",pack:"500g",price:179,old:219,img:"assets/prod_coriander.jpg",rating:4.8,desc:"Fresh, citrusy coriander powder with a warm aroma.",ingredients:"100% coriander",usage:"Curries, gravies and masalas."},
+  {id:4,name:"Garam Masala",category:"Masala Blends",pack:"200g",price:249,old:299,img:"assets/prod_garam.jpg",rating:4.9,desc:"A fragrant blend designed to finish Indian dishes beautifully.",ingredients:"Coriander, cumin, pepper, cinnamon and more.",usage:"Add near the end of cooking."},
+  {id:5,name:"Black Pepper",category:"Whole Spices",pack:"200g",price:299,old:349,img:"assets/prod_pepper.jpg",rating:4.8,desc:"Aromatic whole black pepper with a warm, sharp finish.",ingredients:"100% black pepper",usage:"Grind fresh for best aroma."},
+  {id:6,name:"Cardamom",category:"Whole Spices",pack:"100g",price:349,old:399,img:"assets/prod_cardamom.jpg",rating:4.9,desc:"Fragrant green cardamom for sweets, tea and savoury dishes.",ingredients:"100% green cardamom",usage:"Crush pods or use whole."}
+];
+
+const CATS = [
+  ["cat_whole.jpg","Whole Spices"],
+  ["cat_ground.jpg","Ground Spices"],
+  ["cat_masala.jpg","Masala Blends"],
+  ["cat_herbs.jpg","Herbs & Leaves"],
+  ["cat_organic.jpg","Organic Spices"],
+  ["cat_combo.jpg","Combo Packs"]
+];
+
+let cart = JSON.parse(localStorage.getItem("sk_cart") || "[]");
+let wishlist = JSON.parse(localStorage.getItem("sk_wishlist") || "[]");
+
+const params = new URLSearchParams(location.search);
+const money = n => "₹" + n.toLocaleString("en-IN");
+
+function save(){
+  localStorage.setItem("sk_cart", JSON.stringify(cart));
+  localStorage.setItem("sk_wishlist", JSON.stringify(wishlist));
+}
+
+function toast(message){
+  const t = document.getElementById("toast");
+  if(!t) return;
+  t.textContent = message;
+  t.classList.add("show");
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+function cartCount(){
+  return cart.reduce((sum,item) => sum + item.qty, 0);
+}
+
+function refreshCount(){
+  document.querySelectorAll(".cart-count").forEach(el => {
+    el.textContent = cartCount();
+  });
+}
+
+function add(id, qty = 1){
+  const item = cart.find(x => x.id === id);
+  if(item) item.qty += qty;
+  else cart.push({id, qty});
+
+  save();
+  refreshCount();
+  toast("Added to cart");
+}
+
+function remove(id){
+  cart = cart.filter(x => x.id !== id);
+  save();
+  refreshCount();
+  renderCart();
+  renderDrawer();
+  toast("Removed from cart");
+}
+
+function changeQty(id, delta){
+  const item = cart.find(x => x.id === id);
+  if(!item) return;
+
+  item.qty += delta;
+
+  if(item.qty <= 0){
+    remove(id);
+    return;
+  }
+
+  save();
+  refreshCount();
+  renderCart();
+}
+
+function toggleWish(id){
+  if(wishlist.includes(id)){
+    wishlist = wishlist.filter(x => x !== id);
+  }else{
+    wishlist.push(id);
+  }
+
+  save();
+  renderProducts();
+  renderWishlist();
+  toast(wishlist.includes(id) ? "Added to wishlist" : "Removed from wishlist");
+}
+
+function productCard(product){
+  const active = wishlist.includes(product.id);
+  const link = "product-details.html?id=" + product.id;
+
+  return `
+    <article class="card">
+      <div class="card-img">
+        <a href="${link}" aria-label="${product.name}">
+          <img src="${product.img}" alt="${product.name}">
+        </a>
+        <span class="badge">Best Seller</span>
+        <button class="heart ${active ? "active" : ""}"
+                aria-label="Wishlist"
+                onclick="toggleWish(${product.id})">
+          ${active ? "♥" : "♡"}
+        </button>
+      </div>
+
+      <div class="card-info">
+        <a class="card-title" href="${link}"><h3>${product.name}</h3></a>
+        <div class="pack">${product.pack} · ⭐ ${product.rating}</div>
+        <div class="price">
+          ${money(product.price)}
+          <span class="old">${money(product.old)}</span>
+        </div>
+        <button class="add" onclick="add(${product.id})">
+          🛒 Add to Cart
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function renderProducts(list = PRODUCTS, target = "productGrid"){
+  const el = document.getElementById(target);
+  if(el) el.innerHTML = list.map(productCard).join("");
+}
+
+function renderWishlist(){
+  const el = document.getElementById("wishlistGrid");
+  if(!el) return;
+
+  const list = PRODUCTS.filter(p => wishlist.includes(p.id));
+
+  el.innerHTML = list.length
+    ? list.map(productCard).join("")
+    : `<div class="empty filters-empty">Your wishlist is empty.<br>
+        <a class="primary" style="display:inline-block;margin-top:14px" href="products.html">Explore Spices</a>
+      </div>`;
+}
+
+/* ---------- product listing: URL filters + sidebar filters + sort ---------- */
+
+const PRICE_BANDS = {
+  low:  p => p.price < 200,
+  mid:  p => p.price >= 200 && p.price <= 300,
+  high: p => p.price > 300
+};
+
+function checked(attr){
+  return [...document.querySelectorAll(".filters input[" + attr + "]:checked")].map(x => x.dataset[attr.slice(5)]);
+}
+
+function matchesFilters(product){
+  const cat = params.get("cat");
+  const q = (params.get("q") || "").trim().toLowerCase();
+
+  if(cat && product.category !== cat) return false;
+  if(params.get("offers") === "1" && !(product.old > product.price)) return false;
+
+  if(q){
+    const hay = (product.name + " " + product.category + " " + product.pack + " " + product.desc).toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+
+  const cats = checked("data-cat");
+  if(cats.length && !cats.includes(product.category)) return false;
+
+  const bands = checked("data-price").filter(b => PRICE_BANDS[b]);
+  if(bands.length && !bands.some(b => PRICE_BANDS[b](product))) return false;
+
+  return true;
+}
+
+function sortProducts(list){
+  const mode = document.getElementById("sort")?.value || "";
+
+  if(mode.includes("Low to High")) return [...list].sort((a, b) => a.price - b.price);
+  if(mode.includes("High to Low")) return [...list].sort((a, b) => b.price - a.price);
+  return [...list].sort((a, b) => b.rating - a.rating);
+}
+
+function renderListing(){
+  const grid = document.getElementById("productGrid");
+  if(!grid) return;
+
+  const list = sortProducts(PRODUCTS.filter(matchesFilters));
+
+  grid.innerHTML = list.length
+    ? list.map(productCard).join("")
+    : `<div class="empty filters-empty">No products match your selection.<br>
+        <button class="primary" style="display:inline-block;margin-top:14px" onclick="clearFilters()">Clear Filters</button>
+      </div>`;
+
+  const count = document.getElementById("resultCount");
+  if(count) count.textContent = list.length + (list.length === 1 ? " product" : " products");
+}
+
+function clearFilters(){
+  document.querySelectorAll(".filters input[type=checkbox]").forEach(box => box.checked = false);
+  const sort = document.getElementById("sort");
+  if(sort) sort.selectedIndex = 0;
+  renderListing();
+  toast("Filters cleared");
+}
+
+function bindListing(){
+  if(!document.getElementById("productGrid")) return;
+
+  document.querySelectorAll(".filters input[type=checkbox]").forEach(box => box.addEventListener("change", renderListing));
+  document.getElementById("sort")?.addEventListener("change", renderListing);
+  document.querySelector(".mobile-filter")?.addEventListener("click", () => {
+    document.querySelector(".filters")?.classList.toggle("show");
+  });
+
+  if(params.get("cat")) document.querySelector('.page-title h1').textContent = params.get("cat");
+
+  renderListing();
+}
+
+function renderCats(){
+  const el = document.getElementById("categoryGrid");
+  if(!el) return;
+
+  el.innerHTML = CATS.map(category => `
+    <a class="cat" href="products.html?cat=${encodeURIComponent(category[1])}">
+      <img src="assets/${category[0]}" alt="${category[1]}">
+      <b>${category[1]}</b>
+    </a>
+  `).join("");
+}
+
+function openDrawer(){
+  document.getElementById("drawer")?.classList.add("open");
+  document.getElementById("backdrop")?.classList.add("open");
+  renderDrawer();
+}
+
+function closeDrawer(){
+  document.getElementById("drawer")?.classList.remove("open");
+  document.getElementById("backdrop")?.classList.remove("open");
+}
+
+function renderDrawer(){
+  const el = document.getElementById("drawerList");
+  if(!el) return;
+
+  if(!cart.length){
+    el.innerHTML = '<div class="empty">Your cart is empty.</div>';
+    const total = document.getElementById("drawerTotal");
+    if(total) total.textContent = "₹0";
+    return;
+  }
+
+  let total = 0;
+
+  el.innerHTML = cart.map(item => {
+    const product = PRODUCTS.find(p => p.id === item.id);
+    total += product.price * item.qty;
+
+    return `
+      <div class="drawer-row">
+        <img src="${product.img}" alt="${product.name}">
+        <div>
+          <h4>${product.name}</h4>
+          <small>${product.pack} × ${item.qty}</small><br>
+          <b>${money(product.price * item.qty)}</b>
+        </div>
+        <button onclick="remove(${product.id})">×</button>
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("drawerTotal").textContent = money(total);
+}
+
+function renderCart(){
+  const el = document.getElementById("cartList");
+  if(!el) return;
+
+  if(!cart.length){
+    el.innerHTML = `
+      <div class="empty">
+        Your cart is empty.<br>
+        <a href="products.html" class="primary" style="margin-top:15px">
+          Shop Products
+        </a>
+      </div>
+    `;
+    updateSummary();
+    return;
+  }
+
+  el.innerHTML = cart.map(item => {
+    const product = PRODUCTS.find(p => p.id === item.id);
+
+    return `
+      <div class="cart-item">
+        <img src="${product.img}" alt="${product.name}">
+
+        <div>
+          <h3>${product.name}</h3>
+          <p>${product.pack} · ${money(product.price)}</p>
+
+          <div class="cart-actions">
+            <div class="mini-qty">
+              <button onclick="changeQty(${product.id}, -1)">−</button>
+              <span>${item.qty}</span>
+              <button onclick="changeQty(${product.id}, 1)">+</button>
+            </div>
+
+            <button class="remove" onclick="remove(${product.id})">
+              Remove
+            </button>
+          </div>
+        </div>
+
+        <strong>${money(product.price * item.qty)}</strong>
+      </div>
+    `;
+  }).join("");
+
+  updateSummary();
+}
+
+function updateSummary(){
+  const subtotal = cart.reduce((sum,item) => {
+    const product = PRODUCTS.find(p => p.id === item.id);
+    return sum + product.price * item.qty;
+  }, 0);
+
+  const shipping = subtotal === 0 ? 0 : subtotal >= 499 ? 0 : 49;
+  const coupon = localStorage.getItem("sk_coupon");
+  const discount = coupon === "SPICE10" ? Math.round(subtotal * 0.1) : 0;
+  const total = subtotal + shipping - discount;
+
+  document.querySelectorAll(".subtotal").forEach(x => x.textContent = money(subtotal));
+  document.querySelectorAll(".shipping").forEach(x => x.textContent = shipping ? money(shipping) : "FREE");
+  document.querySelectorAll(".discount").forEach(x => x.textContent = discount ? "-" + money(discount) : "₹0");
+  document.querySelectorAll(".grand-total").forEach(x => x.textContent = money(total));
+}
+
+function productByQuery(){
+  const id = Number(new URLSearchParams(location.search).get("id") || 1);
+  return PRODUCTS.find(p => p.id === id) || PRODUCTS[0];
+}
+
+function renderDetail(){
+  const product = productByQuery();
+  const target = document.getElementById("detailContent");
+
+  if(!target) return;
+
+  document.title = product.name + " — SpiceKart";
+
+  target.innerHTML = `
+    <div class="detail-gallery">
+      <img id="mainImg" src="${product.img}" alt="${product.name}">
+      <div class="thumbs">
+        <img class="active"
+             src="${product.img}"
+             alt="${product.name}"
+             onclick="document.getElementById('mainImg').src=this.src">
+      </div>
+    </div>
+
+    <div class="detail-info">
+      <div class="breadcrumbs">
+        Home / Products / ${product.name}
+      </div>
+
+      <h1>${product.name}</h1>
+
+      <div class="rating">
+        ★★★★★ ${product.rating} · 120 Reviews
+      </div>
+
+      <div class="detail-price">
+        ${money(product.price)}
+        <span class="old">${money(product.old)}</span>
+      </div>
+
+      <p class="desc">${product.desc}</p>
+
+      <b>Pack Size</b>
+      <div class="sizes">
+        <button class="size selected">100g</button>
+        <button class="size">${product.pack}</button>
+        <button class="size">1kg</button>
+      </div>
+
+      <b>Quantity</b>
+      <div class="qty">
+        <button onclick="detailQty(-1)">−</button>
+        <span id="detailQty">1</span>
+        <button onclick="detailQty(1)">+</button>
+      </div>
+
+      <div class="detail-actions">
+        <button class="primary"
+                onclick="add(${product.id}, Number(document.getElementById('detailQty').textContent))">
+          Add to Cart
+        </button>
+
+        <button class="primary"
+                style="background:var(--g)"
+                onclick="add(${product.id});location.href='checkout.html'">
+          Buy Now
+        </button>
+      </div>
+
+      <div class="benefits">
+        <div>🚚 Free Shipping<br>Above ₹499</div>
+        <div>🔒 Secure Payment<br>100% Safe</div>
+        <div>↩ Easy Returns<br>Hassle Free</div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab-buttons">
+          <button class="active" onclick="tab(this,'Description')">Description</button>
+          <button onclick="tab(this,'Ingredients')">Ingredients</button>
+          <button onclick="tab(this,'Usage')">Usage</button>
+          <button onclick="tab(this,'Reviews')">Reviews</button>
+        </div>
+
+        <div class="tab-content" id="tabContent">
+          ${product.desc}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function detailQty(delta){
+  const el = document.getElementById("detailQty");
+  if(el) el.textContent = Math.max(1, Number(el.textContent) + delta);
+}
+
+function tab(button, name){
+  document.querySelectorAll(".tab-buttons button")
+    .forEach(x => x.classList.remove("active"));
+
+  button.classList.add("active");
+
+  const product = productByQuery();
+
+  const text = {
+    Description: product.desc,
+    Ingredients: product.ingredients,
+    Usage: product.usage,
+    Reviews: "Customers love this product."
+  };
+
+  document.getElementById("tabContent").textContent = text[name];
+}
+
+function applyCoupon(){
+  const input = document.getElementById("couponInput");
+  const code = input?.value.trim().toUpperCase();
+
+  if(code === "SPICE10"){
+    localStorage.setItem("sk_coupon", code);
+    toast("10% coupon applied");
+    updateSummary();
+  }else{
+    toast("Try coupon SPICE10");
+  }
+}
+
+function placeDemoOrder(){
+  if(!cart.length){
+    toast("Cart is empty");
+    return;
+  }
+
+  localStorage.setItem(
+    "sk_last_order",
+    JSON.stringify({
+      id:"#SK" + Date.now().toString().slice(-6),
+      total:document.querySelector(".grand-total")?.textContent || "₹0",
+      date:new Date().toLocaleDateString(),
+      status:"Confirmed"
+    })
+  );
+
+  location.href = "order-success.html";
+}
+
+function doSearch(){
+  const input = document.getElementById("searchInput");
+  const query = input?.value.trim();
+
+  if(query){
+    location.href = "products.html?q=" + encodeURIComponent(query);
+  }
+}
+
+/* ---------- mobile slide menu ---------- */
+
+const MENU_LINKS = [
+  ["Home", "index.html"],
+  ["All Products", "products.html"],
+  ["Whole Spices", "products.html?cat=Whole%20Spices"],
+  ["Ground Spices", "products.html?cat=Ground%20Spices"],
+  ["Masala Blends", "products.html?cat=Masala%20Blends"],
+  ["Herbs & Leaves", "products.html?cat=Herbs%20%26%20Leaves"],
+  ["Organic Spices", "products.html?cat=Organic%20Spices"],
+  ["Combo Packs", "products.html?cat=Combo%20Packs"],
+  ["Offers", "products.html?offers=1"]
+];
+
+const MENU_ACCOUNT = [
+  ["My Account", "account.html"],
+  ["My Orders", "orders.html"],
+  ["Wishlist", "wishlist.html"],
+  ["Cart", "cart.html"],
+  ["Login / Register", "login.html"],
+  ["Contact Us", "contact.html"],
+  ["About Us", "about.html"]
+];
+
+function buildMenu(){
+  if(document.querySelector(".mnav")) return;
+
+  const panel = document.createElement("aside");
+  panel.className = "mnav";
+  panel.id = "mnav";
+  panel.innerHTML = `
+    <div class="mnav-head">
+      <h3>SpiceKart</h3>
+      <button class="mnav-close" aria-label="Close menu" onclick="closeMenu()">×</button>
+    </div>
+    <div class="mnav-label">SHOP</div>
+    ${MENU_LINKS.map(([t, h]) => `<a href="${h}">${t}</a>`).join("")}
+    <div class="mnav-label">ACCOUNT</div>
+    ${MENU_ACCOUNT.map(([t, h]) => `<a href="${h}">${t}</a>`).join("")}
+    <p class="mnav-foot">Free Shipping above ₹499 · 100% Pure &amp; Natural</p>`;
+
+  const shade = document.createElement("div");
+  shade.className = "mnav-backdrop";
+  shade.id = "mnavBackdrop";
+  shade.addEventListener("click", closeMenu);
+
+  document.body.append(shade, panel);
+}
+
+function openMenu(){
+  buildMenu();
+  document.getElementById("mnav")?.classList.add("open");
+  document.getElementById("mnavBackdrop")?.classList.add("open");
+}
+
+function closeMenu(){
+  document.getElementById("mnav")?.classList.remove("open");
+  document.getElementById("mnavBackdrop")?.classList.remove("open");
+}
+
+/* ---------- small UI behaviours ---------- */
+
+function bindUI(){
+  /* desktop header links (hamburger is hidden on desktop by CSS) */
+  const brand = document.querySelector(".header .brand");
+
+  if(brand && !document.querySelector(".head-links")){
+    const links = document.createElement("nav");
+    links.className = "head-links";
+    links.innerHTML = [
+      ["Home", "index.html"],
+      ["About Us", "about.html"],
+      ["Contact Us", "contact.html"]
+    ].map(([t, h]) => `<a href="${h}">${t}</a>`).join("");
+    brand.insertAdjacentElement("afterend", links);
+  }
+
+  /* mobile menu trigger (header ☰) */
+  document.querySelector(".header > button.head-action")?.addEventListener("click", openMenu);
+
+  /* esc closes drawer + menu */
+  document.addEventListener("keydown", e => {
+    if(e.key !== "Escape") return;
+    closeMenu();
+    closeDrawer();
+  });
+
+  /* hero slider dots (visual state, images come from the backend later) */
+  document.querySelectorAll(".dots i").forEach(dot => {
+    dot.style.cursor = "pointer";
+    dot.addEventListener("click", () => {
+      document.querySelectorAll(".dots i").forEach(d => d.classList.remove("active"));
+      dot.classList.add("active");
+    });
+  });
+
+  /* pack-size selector on product details */
+  document.querySelector(".sizes")?.addEventListener("click", e => {
+    const btn = e.target.closest(".size");
+    if(!btn) return;
+    document.querySelectorAll(".size").forEach(x => x.classList.remove("selected"));
+    btn.classList.add("selected");
+  });
+
+  /* payment method selection (frontend only — no real payment) */
+  document.querySelector(".checkout")?.addEventListener("change", e => {
+    if(e.target.name !== "pay") return;
+    document.querySelectorAll(".payment-method").forEach(p => p.classList.remove("selected"));
+    e.target.closest(".payment-method")?.classList.add("selected");
+  });
+
+  /* placeholders / empty anchors get a real response instead of jumping to top */
+  document.addEventListener("click", e => {
+    const link = e.target.closest('a[href="#"]');
+    if(!link) return;
+    e.preventDefault();
+    toast("This link will be connected with the backend later");
+  });
+
+  /* footer year + active mobile tab */
+  document.querySelectorAll(".footer-year").forEach(el => el.textContent = new Date().getFullYear());
+
+  const page = location.pathname.split("/").pop() || "index.html";
+  document.querySelectorAll(".mobile-bottom a").forEach(a => {
+    if(a.getAttribute("href") === page) a.classList.add("active");
+  });
+}
+
+/* ---------- form UI buttons (demo only, no backend) ---------- */
+
+function saveProfile(){
+  const data = {};
+
+  document.querySelectorAll(".account .field input").forEach(input => {
+    data[input.closest(".field").childNodes[0].textContent.trim()] = input.value;
+  });
+
+  localStorage.setItem("sk_profile", JSON.stringify(data));
+  toast("Profile saved (demo — stored in browser only)");
+}
+
+function prefillProfile(){
+  const data = JSON.parse(localStorage.getItem("sk_profile") || "{}");
+
+  document.querySelectorAll(".account .field input").forEach(input => {
+    const key = input.closest(".field").childNodes[0].textContent.trim();
+    if(data[key]) input.value = data[key];
+  });
+}
+
+function goCheckout(){
+  const missing = [...document.querySelectorAll(".checkout input[required]")].filter(i => !i.value.trim());
+
+  if(missing.length){
+    missing[0].focus();
+    toast("Please fill the delivery details first");
+    return false;
+  }
+
+  toast("Demo checkout — payment is not processed yet");
+  return true;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  refreshCount();
+  if(!document.querySelector(".filters")) renderProducts();
+  renderCats();
+  renderDetail();
+  renderCart();
+  renderWishlist();
+  bindListing();
+  bindUI();
+  prefillProfile();
+
+  document.getElementById("searchBtn")?.addEventListener("click", doSearch);
+
+  document.getElementById("searchInput")
+    ?.addEventListener("keydown", event => {
+      if(event.key === "Enter") doSearch();
+    });
+
+  document.getElementById("cartBtn")?.addEventListener("click", openDrawer);
+  document.getElementById("backdrop")?.addEventListener("click", closeDrawer);
+});
