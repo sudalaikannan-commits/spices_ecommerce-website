@@ -1,11 +1,11 @@
 /* SpiceKart storefront JavaScript */
 const PRODUCTS = [
-  {id:1,name:"Turmeric Powder",category:"Ground Spices",pack:"500g",price:199,old:249,img:"assets/prod_turmeric.jpg",rating:4.8,desc:"Bright, aromatic turmeric powder made for everyday cooking.",ingredients:"100% turmeric",usage:"Curries, rice, marinades and drinks."},
-  {id:2,name:"Red Chilli Powder",category:"Ground Spices",pack:"500g",price:189,old:239,img:"assets/prod_chilli.jpg",rating:4.7,desc:"Bold colour and balanced heat for authentic Indian dishes.",ingredients:"100% red chilli",usage:"Curries, chutneys and spice mixes."},
-  {id:3,name:"Coriander Powder",category:"Ground Spices",pack:"500g",price:179,old:219,img:"assets/prod_coriander.jpg",rating:4.8,desc:"Fresh, citrusy coriander powder with a warm aroma.",ingredients:"100% coriander",usage:"Curries, gravies and masalas."},
-  {id:4,name:"Garam Masala",category:"Masala Blends",pack:"200g",price:249,old:299,img:"assets/prod_garam.jpg",rating:4.9,desc:"A fragrant blend designed to finish Indian dishes beautifully.",ingredients:"Coriander, cumin, pepper, cinnamon and more.",usage:"Add near the end of cooking."},
-  {id:5,name:"Black Pepper",category:"Whole Spices",pack:"200g",price:299,old:349,img:"assets/prod_pepper.jpg",rating:4.8,desc:"Aromatic whole black pepper with a warm, sharp finish.",ingredients:"100% black pepper",usage:"Grind fresh for best aroma."},
-  {id:6,name:"Cardamom",category:"Whole Spices",pack:"100g",price:349,old:399,img:"assets/prod_cardamom.jpg",rating:4.9,desc:"Fragrant green cardamom for sweets, tea and savoury dishes.",ingredients:"100% green cardamom",usage:"Crush pods or use whole."}
+  {id:1,name:"Turmeric Powder",category:"Ground Spices",pack:"500g",price:199,old:249,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Turmeric_Powder_Spelled_Out.jpg/960px-Turmeric_Powder_Spelled_Out.jpg",fb:"assets/prod_turmeric.jpg",rating:4.8,desc:"Bright, aromatic turmeric powder made for everyday cooking.",ingredients:"100% turmeric",usage:"Curries, rice, marinades and drinks."},
+  {id:2,name:"Red Chilli Powder",category:"Ground Spices",pack:"500g",price:189,old:239,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Red_Chili_Powder_%28Lall_Mirch%29_%2849695826571%29.jpg/960px-Red_Chili_Powder_%28Lall_Mirch%29_%2849695826571%29.jpg",fb:"assets/prod_chilli.jpg",rating:4.7,desc:"Bold colour and balanced heat for authentic Indian dishes.",ingredients:"100% red chilli",usage:"Curries, chutneys and spice mixes."},
+  {id:3,name:"Coriander Powder",category:"Ground Spices",pack:"500g",price:179,old:219,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/86/Coriander_Seeds.jpg/960px-Coriander_Seeds.jpg",fb:"assets/prod_coriander.jpg",rating:4.8,desc:"Fresh, citrusy coriander powder with a warm aroma.",ingredients:"100% coriander",usage:"Curries, gravies and masalas."},
+  {id:4,name:"Garam Masala",category:"Masala Blends",pack:"200g",price:249,old:299,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/2/23/Garam_Masala_Powder_by_Chlorofeel_Groups.jpg/960px-Garam_Masala_Powder_by_Chlorofeel_Groups.jpg",fb:"assets/prod_garam.jpg",rating:4.9,desc:"A fragrant blend designed to finish Indian dishes beautifully.",ingredients:"Coriander, cumin, pepper, cinnamon and more.",usage:"Add near the end of cooking."},
+  {id:5,name:"Black Pepper",category:"Whole Spices",pack:"200g",price:299,old:349,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/81/Tellicherry_Black_Peppercorns.jpg/960px-Tellicherry_Black_Peppercorns.jpg",fb:"assets/prod_pepper.jpg",rating:4.8,desc:"Aromatic whole black pepper with a warm, sharp finish.",ingredients:"100% black pepper",usage:"Grind fresh for best aroma."},
+  {id:6,name:"Cardamom",category:"Whole Spices",pack:"100g",price:349,old:399,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Green_Cardamom_Pods.jpg/960px-Green_Cardamom_Pods.jpg",fb:"assets/prod_cardamom.jpg",rating:4.9,desc:"Fragrant green cardamom for sweets, tea and savoury dishes.",ingredients:"100% green cardamom",usage:"Crush pods or use whole."}
 ];
 
 const CATS = [
@@ -103,7 +103,7 @@ function productCard(product){
     <article class="card">
       <div class="card-img">
         <a href="${link}" aria-label="${product.name}">
-          <img src="${product.img}" alt="${product.name}">
+          <img src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
         </a>
         <span class="badge">Best Seller</span>
         <button class="heart ${active ? "active" : ""}"
@@ -267,7 +267,7 @@ function renderDrawer(){
 
     return `
       <div class="drawer-row">
-        <img src="${product.img}" alt="${product.name}">
+        <img src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
         <div>
           <h4>${product.name}</h4>
           <small>${product.pack} × ${item.qty}</small><br>
@@ -303,7 +303,7 @@ function renderCart(){
 
     return `
       <div class="cart-item">
-        <img src="${product.img}" alt="${product.name}">
+        <img src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
 
         <div>
           <h3>${product.name}</h3>
@@ -362,10 +362,11 @@ function renderDetail(){
 
   target.innerHTML = `
     <div class="detail-gallery">
-      <img id="mainImg" src="${product.img}" alt="${product.name}">
+      <img id="mainImg" src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
       <div class="thumbs">
         <img class="active"
              src="${product.img}"
+             onerror="this.onerror=null;this.src='${product.fb}'"
              alt="${product.name}"
              onclick="document.getElementById('mainImg').src=this.src">
       </div>
@@ -500,6 +501,75 @@ function doSearch(){
   if(query){
     location.href = "products.html?q=" + encodeURIComponent(query);
   }
+}
+
+/* ---------- home page hero slideshow ----------
+   4 supplied images (2123x741 wide banners):
+     hero_slide1.png  Rustic Spice Market Still Life
+     hero_slide2.png  Rustic Spice Market Still Life (1)
+     hero_slide3.png  Rustic Spice Market Still Life (2)
+     hero_slide4.png  Rustic Farm Market Produce Display
+   Each alt slide is anchored right so the subject sits on the right half and
+   the left half stays open for the hero text. */
+
+const HERO_SLIDES = [
+  {src:"assets/hero_slide1.png", alt:"Rustic spice market still life", alt_:true},
+  {src:"assets/hero_slide2.png", alt:"Rustic spice market still life", alt_:true},
+  {src:"assets/hero_slide3.png", alt:"Rustic spice market still life", alt_:true},
+  {src:"assets/hero_slide4.png", alt:"Rustic farm market produce display", alt_:true}
+];
+
+function initHeroSlides(){
+  const hero = document.querySelector(".hero");
+  if(!hero) return;
+
+  const first = hero.querySelector(":scope > img");
+  const dots = hero.querySelector(".dots");
+
+  if(!first || !dots) return;
+
+  first.classList.add("hero-slide", "active");
+
+  HERO_SLIDES.forEach((slide, i) => {
+    if(i === 0) return;
+
+    const img = document.createElement("img");
+    img.className = slide.alt_ ? "hero-slide hero-slide--alt" : "hero-slide";
+    img.src = slide.src;
+    img.alt = slide.alt;
+    hero.insertBefore(img, dots);
+  });
+
+  const dotsNew = HERO_SLIDES.map((_, i) => `<i data-slide="${i}" class="${i === 0 ? "active" : ""}"></i>`).join("");
+  dots.innerHTML = dotsNew;
+
+  const dotsAll = [...dots.querySelectorAll("i")];
+  const slides = [...hero.querySelectorAll(".hero-slide")];
+  let index = 0;
+  let timer;
+
+  function go(next){
+    index = (next + slides.length) % slides.length;
+    slides.forEach((s, i) => s.classList.toggle("active", i === index));
+    dotsAll.forEach((d, i) => d.classList.toggle("active", i === index));
+  }
+
+  function play(){
+    clearInterval(timer);
+    timer = setInterval(() => go(index + 1), 3500);
+  }
+
+  dots.addEventListener("click", e => {
+    const dot = e.target.closest("i[data-slide]");
+    if(!dot) return;
+    go(Number(dot.dataset.slide));
+    play();
+  });
+
+  hero.addEventListener("mouseenter", () => clearInterval(timer));
+  hero.addEventListener("mouseleave", play);
+
+  play();
 }
 
 /* ---------- mobile slide menu ---------- */
@@ -674,6 +744,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderWishlist();
   bindListing();
   bindUI();
+  initHeroSlides();
   prefillProfile();
 
   document.getElementById("searchBtn")?.addEventListener("click", doSearch);
