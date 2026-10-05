@@ -1,0 +1,13 @@
+# Database credentials written by install.php
+config/local.php
+
+# Uploaded product/category images
+uploads/products/*
+!uploads/products/.gitkeep
+!uploads/products/index.html
+
+# OS / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log

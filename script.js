@@ -1,5 +1,8 @@
-/* SpiceKart storefront JavaScript */
-const PRODUCTS = [
+/* SpiceKart storefront JavaScript
+   Catalogue + cart are seeded from the static list below, then replaced with
+   live data from the PHP/MySQL API (assets/store-db.js) whenever the store is
+   installed. Everything falls back to the static data if the API is missing. */
+let PRODUCTS = [
   {id:1,name:"Turmeric Powder",category:"Ground Spices",pack:"500g",price:199,old:249,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Turmeric_Powder_Spelled_Out.jpg/960px-Turmeric_Powder_Spelled_Out.jpg",fb:"assets/prod_turmeric.jpg",rating:4.8,desc:"Bright, aromatic turmeric powder made for everyday cooking.",ingredients:"100% turmeric",usage:"Curries, rice, marinades and drinks."},
   {id:2,name:"Red Chilli Powder",category:"Ground Spices",pack:"500g",price:189,old:239,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/Red_Chili_Powder_%28Lall_Mirch%29_%2849695826571%29.jpg/960px-Red_Chili_Powder_%28Lall_Mirch%29_%2849695826571%29.jpg",fb:"assets/prod_chilli.jpg",rating:4.7,desc:"Bold colour and balanced heat for authentic Indian dishes.",ingredients:"100% red chilli",usage:"Curries, chutneys and spice mixes."},
   {id:3,name:"Coriander Powder",category:"Ground Spices",pack:"500g",price:179,old:219,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/86/Coriander_Seeds.jpg/960px-Coriander_Seeds.jpg",fb:"assets/prod_coriander.jpg",rating:4.8,desc:"Fresh, citrusy coriander powder with a warm aroma.",ingredients:"100% coriander",usage:"Curries, gravies and masalas."},
@@ -8,7 +11,7 @@ const PRODUCTS = [
   {id:6,name:"Cardamom",category:"Whole Spices",pack:"100g",price:349,old:399,img:"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/82/Green_Cardamom_Pods.jpg/960px-Green_Cardamom_Pods.jpg",fb:"assets/prod_cardamom.jpg",rating:4.9,desc:"Fragrant green cardamom for sweets, tea and savoury dishes.",ingredients:"100% green cardamom",usage:"Crush pods or use whole."}
 ];
 
-const CATS = [
+let CATS = [
   ["cat_whole.jpg","Whole Spices"],
   ["cat_ground.jpg","Ground Spices"],
   ["cat_masala.jpg","Masala Blends"],
@@ -22,6 +25,11 @@ let wishlist = JSON.parse(localStorage.getItem("sk_wishlist") || "[]");
 
 const params = new URLSearchParams(location.search);
 const money = n => "₹" + n.toLocaleString("en-IN");
+
+/* escapes catalog/review values before they are placed into innerHTML templates */
+const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}[ch]));
 
 function save(){
   localStorage.setItem("sk_cart", JSON.stringify(cart));
@@ -102,8 +110,8 @@ function productCard(product){
   return `
     <article class="card">
       <div class="card-img">
-        <a href="${link}" aria-label="${product.name}">
-          <img src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
+        <a href="${link}" aria-label="${esc(product.name)}">
+          <img src="${esc(product.img)}" onerror="this.onerror=null;this.src='${esc(product.fb)}'" alt="${esc(product.name)}">
         </a>
         <span class="badge">Best Seller</span>
         <button class="heart ${active ? "active" : ""}"
@@ -114,7 +122,7 @@ function productCard(product){
       </div>
 
       <div class="card-info">
-        <a class="card-title" href="${link}"><h3>${product.name}</h3></a>
+        <a class="card-title" href="${link}"><h3>${esc(product.name)}</h3></a>
         <div class="pack">${product.pack} · ⭐ ${product.rating}</div>
         <div class="price">
           ${money(product.price)}
@@ -267,9 +275,9 @@ function renderDrawer(){
 
     return `
       <div class="drawer-row">
-        <img src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
+        <img src="${esc(product.img)}" onerror="this.onerror=null;this.src='${esc(product.fb)}'" alt="${esc(product.name)}">
         <div>
-          <h4>${product.name}</h4>
+          <h4>${esc(product.name)}</h4>
           <small>${product.pack} × ${item.qty}</small><br>
           <b>${money(product.price * item.qty)}</b>
         </div>
@@ -303,10 +311,10 @@ function renderCart(){
 
     return `
       <div class="cart-item">
-        <img src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
+        <img src="${esc(product.img)}" onerror="this.onerror=null;this.src='${esc(product.fb)}'" alt="${esc(product.name)}">
 
         <div>
-          <h3>${product.name}</h3>
+          <h3>${esc(product.name)}</h3>
           <p>${product.pack} · ${money(product.price)}</p>
 
           <div class="cart-actions">
@@ -336,10 +344,17 @@ function updateSummary(){
     return sum + product.price * item.qty;
   }, 0);
 
-  const shipping = subtotal === 0 ? 0 : subtotal >= 499 ? 0 : 49;
+  const cfg = window.StoreDB?.config || {};
+  const shippingFee = Number(cfg.shipping_fee ?? 49);
+  const freeAbove = Number(cfg.free_shipping_above ?? 499);
+  const shipping = subtotal === 0 ? 0 : freeAbove > 0 && subtotal >= freeAbove ? 0 : shippingFee;
+
   const coupon = localStorage.getItem("sk_coupon");
-  const discount = coupon === "SPICE10" ? Math.round(subtotal * 0.1) : 0;
-  const total = subtotal + shipping - discount;
+  const stored = Number(localStorage.getItem("sk_coupon_discount"));
+  const discount = stored > 0
+    ? stored
+    : (coupon === "SPICE10" ? Math.round(subtotal * 0.1) : 0);
+  const total = Math.max(0, subtotal + shipping - discount);
 
   document.querySelectorAll(".subtotal").forEach(x => x.textContent = money(subtotal));
   document.querySelectorAll(".shipping").forEach(x => x.textContent = shipping ? money(shipping) : "FREE");
@@ -348,7 +363,15 @@ function updateSummary(){
 }
 
 function productByQuery(){
-  const id = Number(new URLSearchParams(location.search).get("id") || 1);
+  const q = new URLSearchParams(location.search);
+  const id = Number(q.get("id") || 0);
+  const slug = q.get("slug") || "";
+
+  if(slug){
+    const bySlug = PRODUCTS.find(p => p.slug === slug);
+    if(bySlug) return bySlug;
+  }
+
   return PRODUCTS.find(p => p.id === id) || PRODUCTS[0];
 }
 
@@ -362,22 +385,22 @@ function renderDetail(){
 
   target.innerHTML = `
     <div class="detail-gallery">
-      <img id="mainImg" src="${product.img}" onerror="this.onerror=null;this.src='${product.fb}'" alt="${product.name}">
+      <img id="mainImg" src="${esc(product.img)}" onerror="this.onerror=null;this.src='${esc(product.fb)}'" alt="${esc(product.name)}">
       <div class="thumbs">
         <img class="active"
-             src="${product.img}"
-             onerror="this.onerror=null;this.src='${product.fb}'"
-             alt="${product.name}"
+             src="${esc(product.img)}"
+             onerror="this.onerror=null;this.src='${esc(product.fb)}'"
+             alt="${esc(product.name)}"
              onclick="document.getElementById('mainImg').src=this.src">
       </div>
     </div>
 
     <div class="detail-info">
       <div class="breadcrumbs">
-        Home / Products / ${product.name}
+        Home / Products / ${esc(product.name)}
       </div>
 
-      <h1>${product.name}</h1>
+      <h1>${esc(product.name)}</h1>
 
       <div class="rating">
         ★★★★★ ${product.rating} · 120 Reviews
@@ -388,7 +411,7 @@ function renderDetail(){
         <span class="old">${money(product.old)}</span>
       </div>
 
-      <p class="desc">${product.desc}</p>
+      <p class="desc">${esc(product.desc)}</p>
 
       <b>Pack Size</b>
       <div class="sizes">
@@ -432,7 +455,7 @@ function renderDetail(){
         </div>
 
         <div class="tab-content" id="tabContent">
-          ${product.desc}
+          ${esc(product.desc)}
         </div>
       </div>
     </div>
@@ -466,10 +489,36 @@ function applyCoupon(){
   const input = document.getElementById("couponInput");
   const code = input?.value.trim().toUpperCase();
 
-  if(code === "SPICE10"){
+  if(!code) return;
+
+  const subtotal = cart.reduce((sum, item) => {
+    const product = PRODUCTS.find(p => p.id === item.id);
+    return sum + (product ? product.price * item.qty : 0);
+  }, 0);
+
+  const finish = discount => {
     localStorage.setItem("sk_coupon", code);
-    toast("10% coupon applied");
+    localStorage.setItem("sk_coupon_discount", String(discount));
+    toast(code + " applied");
     updateSummary();
+  };
+
+  if(window.StoreDB?.enabled){
+    window.StoreDB.coupon(code, subtotal).then(result => {
+      if(result?.ok){
+        finish(result.discount);
+      }else if(result?.fallback){
+        if(code === "SPICE10"){ finish(Math.round(subtotal * 0.1)); }
+        else toast("Try coupon SPICE10");
+      }else{
+        toast(result?.error || "Invalid coupon code");
+      }
+    });
+    return;
+  }
+
+  if(code === "SPICE10"){
+    finish(Math.round(subtotal * 0.1));
   }else{
     toast("Try coupon SPICE10");
   }
@@ -481,17 +530,84 @@ function placeDemoOrder(){
     return;
   }
 
-  localStorage.setItem(
-    "sk_last_order",
-    JSON.stringify({
-      id:"#SK" + Date.now().toString().slice(-6),
-      total:document.querySelector(".grand-total")?.textContent || "₹0",
-      date:new Date().toLocaleDateString(),
-      status:"Confirmed"
-    })
-  );
+  const saveDemoOrder = () => {
+    localStorage.setItem(
+      "sk_last_order",
+      JSON.stringify({
+        id:"#SK" + Date.now().toString().slice(-6),
+        total:document.querySelector(".grand-total")?.textContent || "₹0",
+        date:new Date().toLocaleDateString(),
+        status:"Confirmed"
+      })
+    );
+    location.href = "order-success.html";
+  };
 
-  location.href = "order-success.html";
+  if(!window.StoreDB?.enabled){
+    saveDemoOrder();
+    return;
+  }
+
+  const checkout = JSON.parse(localStorage.getItem("sk_checkout") || "{}");
+  const cfg = window.StoreDB?.config || {};
+  const button = document.querySelector('button[onclick*="placeDemoOrder"]');
+
+  /* hide methods the admin has switched off */
+  document.querySelectorAll("[data-method='cod']").forEach(el => {
+    el.closest(".payment-method").classList.toggle("hidden", cfg.cod_enabled === false);
+  });
+  document.querySelectorAll("[data-method='online']").forEach(el => {
+    const row = el.closest(".payment-method");
+    const offline = cfg.online_payment_enabled === false;
+    row.classList.toggle("hidden", offline);
+    if(offline && el.checked){ el.checked = false; }
+  });
+  if(!document.querySelector('input[name="pay"]:checked')){
+    const firstVisible = [...document.querySelectorAll('input[name="pay"]')]
+      .find(el => !el.closest(".payment-method")?.classList.contains("hidden"));
+    if(firstVisible) firstVisible.checked = true;
+  }
+  if(!document.querySelector('input[name="pay"]:checked')){
+    toast("No payment method is available right now");
+    return;
+  }
+
+  const method = (document.querySelector('input[name="pay"]:checked')?.value || "UPI").toUpperCase();
+
+  if(button){ button.disabled = true; button.textContent = "Placing order…"; }
+
+  window.StoreDB.placeOrder({
+    customer:{
+      name:checkout.name || "",
+      email:checkout.email || "",
+      phone:checkout.phone || "",
+      address:checkout.address || "",
+      city:checkout.city || "",
+      state:checkout.state || "",
+      pincode:checkout.pincode || ""
+    },
+    items:cart.map(item => ({ id:item.id, qty:item.qty })),
+    coupon:localStorage.getItem("sk_coupon") || "",
+    payment_method:["COD","CARD","UPI","NETBANKING"].includes(method) ? method : "COD"
+  }).then(result => {
+    if(result?.ok){
+      localStorage.setItem(
+        "sk_last_order",
+        JSON.stringify({
+          id:"#" + result.order_code,
+          order_code:result.order_code,
+          total:result.total_text || "₹" + result.total,
+          date:new Date().toLocaleDateString(),
+          status:"Confirmed",
+          email:checkout.email || ""
+        })
+      );
+      location.href = "order-success.html";
+    }else{
+      toast(result?.error || "Could not place the order");
+      if(button){ button.disabled = false; button.textContent = "Place Order"; }
+    }
+  });
 }
 
 function doSearch(){
@@ -731,17 +847,135 @@ function goCheckout(){
     return false;
   }
 
-  toast("Demo checkout — payment is not processed yet");
+  const field = label => {
+    const el = [...document.querySelectorAll(".checkout .field")]
+      .find(f => f.childNodes[0]?.textContent.trim().toUpperCase().startsWith(label.toUpperCase()))
+      ?.querySelector("input, textarea, select");
+    return el ? el.value.trim() : "";
+  };
+
+  localStorage.setItem("sk_checkout", JSON.stringify({
+    name:field("Full Name"),
+    phone:field("Phone"),
+    email:field("Email"),
+    pincode:field("Pincode"),
+    address:field("Address"),
+    city:field("City"),
+    state:field("State")
+  }));
+
+  toast("Delivery details saved");
   return true;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+/* ---------- live data (PHP/MySQL) ---------- */
+
+function loadStoreDb(){
+  if(window.StoreDB) return window.StoreDB.load();
+
+  return new Promise(resolve => {
+    const script = document.createElement("script");
+    script.src = "assets/store-db.js";
+    script.onload = () => resolve(window.StoreDB ? window.StoreDB.load() : null);
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  }).catch(() => null);
+}
+
+function renderLiveOrders(){
+  const page = document.querySelector(".page.container");
+  if(!page || !window.StoreDB?.enabled) return;
+
+  const checkout = JSON.parse(localStorage.getItem("sk_checkout") || "{}");
+  const lastOrder = JSON.parse(localStorage.getItem("sk_last_order") || "{}");
+  const email = checkout.email || lastOrder.email;
+  if(!email) return;
+
+  const existing = page.querySelectorAll(".order");
+  existing.forEach(node => node.remove());
+
+  const heading = document.createElement("h2");
+  heading.textContent = "Live order history";
+  heading.style.cssText = "font-size:16px;margin:18px 0 10px";
+  page.appendChild(heading);
+
+  /* every server-side value is written with textContent — never interpolated into innerHTML */
+  const text = (tag, value, cssText) => {
+    const node = document.createElement(tag);
+    node.textContent = value;
+    if(cssText) node.style.cssText = cssText;
+    return node;
+  };
+
+  window.StoreDB.orders(email).then(result => {
+    if(!result) return;
+
+    const wrap = document.createElement("div");
+    wrap.className = "order";
+
+    if(!result.orders.length){
+      const head = document.createElement("div");
+      head.className = "order-head";
+      const left = document.createElement("div");
+      left.appendChild(text("b", "No orders yet"));
+      left.appendChild(text("p", "Orders placed with " + email + " appear here.", "font-size:11px;color:#777"));
+      head.appendChild(left);
+      wrap.appendChild(head);
+      page.appendChild(wrap);
+      return;
+    }
+
+    result.orders.forEach(order => {
+      const card = document.createElement("div");
+      card.className = "order";
+
+      const head = document.createElement("div");
+      head.className = "order-head";
+      const left = document.createElement("div");
+      left.appendChild(text("b", "#" + order.order_code));
+      left.appendChild(text("p", new Date(order.placed_at).toLocaleDateString() +
+        " · " + order.items.length + " item(s)", "font-size:11px;color:#777"));
+      head.appendChild(left);
+
+      const status = String(order.status || "");
+      const known = ["pending","confirmed","packed","shipped","delivered","cancelled","refunded"];
+      const badge = text("span", status.charAt(0).toUpperCase() + status.slice(1));
+      badge.className = "status" + (known.includes(status.toLowerCase()) ? "" : " pending");
+      if(/pending|processing/i.test(status)) badge.className += " pending";
+      head.appendChild(badge);
+      card.appendChild(head);
+
+      const names = order.items
+        .map(i => i.product_name + (i.quantity > 1 ? " x" + i.quantity : ""))
+        .join(", ");
+      const foot = document.createElement("div");
+      foot.style.cssText = "margin-top:12px;display:flex;justify-content:space-between;font-size:13px";
+      foot.appendChild(text("span", names));
+      foot.appendChild(text("b", "₹" + Number(order.total).toLocaleString("en-IN")));
+      card.appendChild(foot);
+
+      wrap.appendChild(card);
+    });
+
+    page.appendChild(wrap);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadStoreDb();
+
+  if(window.StoreDB?.enabled){
+    if(window.StoreDB.products?.length) PRODUCTS = window.StoreDB.products;
+    if(window.StoreDB.cats?.length) CATS = window.StoreDB.cats;
+  }
+
   refreshCount();
   if(!document.querySelector(".filters")) renderProducts();
   renderCats();
   renderDetail();
   renderCart();
   renderWishlist();
+  renderLiveOrders();
   bindListing();
   bindUI();
   initHeroSlides();

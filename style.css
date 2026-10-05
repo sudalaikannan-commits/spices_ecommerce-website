@@ -430,3 +430,6 @@ body{overflow-x:hidden}
 .header-actions{flex:0 0 auto;min-width:0}
 .page{max-width:100%;box-sizing:border-box}
 .page img{max-width:100%}
+
+/* utility */
+.hidden{display:none !important}
